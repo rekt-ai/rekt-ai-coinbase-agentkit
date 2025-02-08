@@ -7,6 +7,7 @@ import {
   cdpApiActionProvider,
   cdpWalletActionProvider,
   pythActionProvider,
+  ViemWalletProvider,
 } from "@coinbase/agentkit";
 import { getLangChainTools } from "@coinbase/agentkit-langchain";
 import { HumanMessage } from "@langchain/core/messages";
@@ -19,6 +20,9 @@ import * as readline from "readline";
 import axios from "axios";
 import { DynamicStructuredTool } from "@langchain/core/tools";
 import { z } from "zod";
+import { createWalletClient, http } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
+import { baseSepolia } from "viem/chains";
 
 dotenv.config();
 
@@ -38,6 +42,7 @@ export function validateEnvironment(): void {
     "CDP_API_KEY_NAME",
     "CDP_API_KEY_PRIVATE_KEY",
     "MARKET_DATA_API_KEY",
+    "AGENT_PRIVATE_KEY",
   ];
   requiredVars.forEach((varName) => {
     if (!process.env[varName]) {
@@ -145,6 +150,16 @@ export async function initializeAgent() {
       cdpWalletData: walletDataStr || undefined,
       networkId: process.env.NETWORK_ID || "base-sepolia",
     };
+
+    const account = privateKeyToAccount(
+      process.env.AGENT_PRIVATE_KEY as `0x${string}`
+    );
+    const walletClient = createWalletClient({
+      account,
+      chain: baseSepolia,
+      transport: http(),
+    });
+    // const walletProvider = new ViemWalletProvider(walletClient);
 
     const walletProvider = await CdpWalletProvider.configureWithWallet(config);
 
