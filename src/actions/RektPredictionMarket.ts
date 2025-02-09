@@ -32,11 +32,18 @@ export const readMarketsContract = customActionProvider<EvmWalletProvider>({
     const phaseIndex: number = (await walletProvider.readContract({
       abi: contractABI,
       address: contractAddress as `0x${string}`,
-      functionName: "getMarketPhase",
+      functionName: "getPlayerData",
       args: [marketId],
     })) as number;
 
-    console.log(phaseIndex, "index");
+    const playerData: any = await walletProvider.readContract({
+      abi: contractABI,
+      address: contractAddress as `0x${string}`,
+      functionName: "getPlayerData",
+      args: [marketId, , walletProvider.getAddress()],
+    });
+
+    const isPredictedByAI: any = playerData[0].toString() === "0";
 
     return JSON.stringify({
       startTime: rawResult[0].toString(),
@@ -47,6 +54,7 @@ export const readMarketsContract = customActionProvider<EvmWalletProvider>({
       settled: rawResult[5].toString(),
       name: rawResult[6].toString(),
       phase: phaseEnum[phaseIndex],
+      isPredictedByAI,
     });
   },
 });
