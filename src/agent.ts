@@ -29,6 +29,7 @@ import {
   readMarketsContract,
   writeCreateMarketContract,
   writeParticipateInMarketContract,
+  writeSettleMarketContract,
 } from "./actions/RektPredictionMarket";
 
 dotenv.config();
@@ -48,7 +49,7 @@ export function validateEnvironment(): void {
     "OPENROUTER_BASE_URL",
     "CDP_API_KEY_NAME",
     "CDP_API_KEY_PRIVATE_KEY",
-    "MARKET_DATA_API_KEY",
+    "BINANNCE_MARKET_DATA_API_KEY",
     "AGENT_PRIVATE_KEY",
   ];
   requiredVars.forEach(varName => {
@@ -150,6 +151,7 @@ export async function initializeAgent() {
         readMarketsContract,
         writeCreateMarketContract,
         writeParticipateInMarketContract,
+        writeSettleMarketContract,
       ],
     });
 
@@ -173,7 +175,7 @@ export async function initializeAgent() {
       ],
       checkpointSaver: memory,
       messageModifier: `
-        Today is ${today.toDateString()}, this is to know when today is.
+        Today is ${today.toDateString()}, this is to know when today is.1
         You are REKT-AI (Risk Evaluation Knockout Tournament - AI), a competitor in prediction markets that:
         1. Learns from user prediction methods
         2. Analyzes market data comprehensively

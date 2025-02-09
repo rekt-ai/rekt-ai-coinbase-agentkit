@@ -19,7 +19,7 @@ export const getBinanceMarketData = new DynamicStructuredTool({
           limit,
         },
         headers: {
-          "X-MBX-APIKEY": process.env.MARKET_DATA_API_KEY,
+          "X-MBX-APIKEY": process.env.BINANNCE_MARKET_DATA_API_KEY,
         },
       });
 
