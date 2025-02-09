@@ -22,7 +22,9 @@ import { DynamicStructuredTool } from "@langchain/core/tools";
 import { z } from "zod";
 import { createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { baseSepolia } from "viem/chains";
+import { arbitrumSepolia, baseSepolia } from "viem/chains";
+import { getBinanceMarketData } from "./tools/binanceTool";
+import { getSubgraphMarketCreatedData, getSubgraphMarketSettledData } from "./tools/subgraphTool";
 
 dotenv.config();
 
@@ -44,7 +46,7 @@ export function validateEnvironment(): void {
     "MARKET_DATA_API_KEY",
     "AGENT_PRIVATE_KEY",
   ];
-  requiredVars.forEach((varName) => {
+  requiredVars.forEach(varName => {
     if (!process.env[varName]) {
       missingVars.push(varName);
     }
@@ -53,7 +55,7 @@ export function validateEnvironment(): void {
   // Exit if any required variables are missing
   if (missingVars.length > 0) {
     console.error("Error: Required environment variables are not set");
-    missingVars.forEach((varName) => {
+    missingVars.forEach(varName => {
       console.error(`${varName}=your_${varName.toLowerCase()}_here`);
     });
     process.exit(1);
@@ -61,9 +63,7 @@ export function validateEnvironment(): void {
 
   // Warn about optional NETWORK_ID
   if (!process.env.NETWORK_ID) {
-    console.warn(
-      "Warning: NETWORK_ID not set, defaulting to base-sepolia testnet"
-    );
+    console.warn("Warning: NETWORK_ID not set, defaulting to base-sepolia testnet");
   }
 }
 
@@ -72,30 +72,6 @@ validateEnvironment();
 
 // Configure a file to persist the agent's CDP MPC Wallet Data
 const WALLET_DATA_FILE = "wallet_data.txt";
-
-// Tambahkan fungsi helper untuk mendapatkan data Binance
-async function getBinanceData(
-  symbol: string,
-  interval: string = "1d",
-  limit: number = 24
-) {
-  try {
-    const response = await axios.get(`https://api.binance.com/api/v3/klines`, {
-      params: {
-        symbol: symbol.toUpperCase(),
-        interval: interval,
-        limit: limit,
-      },
-      headers: {
-        "X-MBX-APIKEY": process.env.MARKET_DATA_API_KEY,
-      },
-    });
-    return response.data;
-  } catch (error) {
-    console.error("Error fetching Binance data:", error);
-    return null;
-  }
-}
 
 // Tambahkan interface untuk market
 interface Market {
@@ -111,6 +87,11 @@ interface Market {
     method: string;
   }>;
 }
+
+const chain = {
+  "base-sepolia": baseSepolia,
+  "arbitrum-sepolia": arbitrumSepolia,
+};
 
 /**
  * Initialize the agent with CDP Agentkit
@@ -143,25 +124,22 @@ export async function initializeAgent() {
     // Configure CDP Wallet Provider
     const config = {
       apiKeyName: process.env.CDP_API_KEY_NAME,
-      apiKeyPrivateKey: process.env.CDP_API_KEY_PRIVATE_KEY?.replace(
-        /\\n/g,
-        "\n"
-      ),
+      apiKeyPrivateKey: process.env.CDP_API_KEY_PRIVATE_KEY?.replace(/\\n/g, "\n"),
       cdpWalletData: walletDataStr || undefined,
       networkId: process.env.NETWORK_ID || "base-sepolia",
     };
 
-    const account = privateKeyToAccount(
-      process.env.AGENT_PRIVATE_KEY as `0x${string}`
-    );
+    const networkId = process.env.NETWORK_ID || "base-sepolia";
+
+    const account = privateKeyToAccount(process.env.AGENT_PRIVATE_KEY as `0x${string}`);
     const walletClient = createWalletClient({
       account,
-      chain: baseSepolia,
+      chain: chain[networkId],
       transport: http(),
     });
-    // const walletProvider = new ViemWalletProvider(walletClient);
+    const walletProvider = new ViemWalletProvider(walletClient);
 
-    const walletProvider = await CdpWalletProvider.configureWithWallet(config);
+    // const walletProvider = await CdpWalletProvider.configureWithWallet(config);
 
     // Initialize AgentKit
     const agentkit = await AgentKit.from({
@@ -173,17 +151,11 @@ export async function initializeAgent() {
         erc20ActionProvider(),
         cdpApiActionProvider({
           apiKeyName: process.env.CDP_API_KEY_NAME,
-          apiKeyPrivateKey: process.env.CDP_API_KEY_PRIVATE_KEY?.replace(
-            /\\n/g,
-            "\n"
-          ),
+          apiKeyPrivateKey: process.env.CDP_API_KEY_PRIVATE_KEY?.replace(/\\n/g, "\n"),
         }),
         cdpWalletActionProvider({
           apiKeyName: process.env.CDP_API_KEY_NAME,
-          apiKeyPrivateKey: process.env.CDP_API_KEY_PRIVATE_KEY?.replace(
-            /\\n/g,
-            "\n"
-          ),
+          apiKeyPrivateKey: process.env.CDP_API_KEY_PRIVATE_KEY?.replace(/\\n/g, "\n"),
         }),
       ],
     });
@@ -201,59 +173,9 @@ export async function initializeAgent() {
       llm,
       tools: [
         ...tools,
-        new DynamicStructuredTool({
-          name: "getBinanceMarketData",
-          description: "Get historical market data from Binance",
-          schema: z.object({
-            symbol: z
-              .string()
-              .describe("The trading pair symbol (e.g., BTCUSDT)"),
-            interval: z
-              .string()
-              .optional()
-              .default("1d")
-              .describe("Time interval (e.g., 1h, 4h, 1d)"),
-            limit: z
-              .number()
-              .optional()
-              .default(24)
-              .describe("Number of candles to fetch"),
-          }),
-          func: async ({ symbol, interval = "1d", limit = 24 }) => {
-            try {
-              const response = await axios.get(
-                `https://api.binance.com/api/v3/klines`,
-                {
-                  params: {
-                    symbol: symbol.toUpperCase(),
-                    interval,
-                    limit,
-                  },
-                  headers: {
-                    "X-MBX-APIKEY": process.env.MARKET_DATA_API_KEY,
-                  },
-                }
-              );
-
-              return JSON.stringify({
-                raw_data: response.data,
-                extracted_metrics: {
-                  high: response.data[0][2],
-                  low: response.data[0][3],
-                  change_percent: (
-                    ((response.data[0][4] - response.data[0][1]) /
-                      response.data[0][1]) *
-                    100
-                  ).toFixed(2),
-                  timestamp: response.data[0][0],
-                },
-              });
-            } catch (error) {
-              console.error("Error fetching Binance data:", error);
-              return "Error fetching market data";
-            }
-          },
-        }),
+        getBinanceMarketData,
+        getSubgraphMarketCreatedData,
+        getSubgraphMarketSettledData,
       ],
       checkpointSaver: memory,
       messageModifier: `
@@ -272,14 +194,15 @@ export async function initializeAgent() {
         - Explain your prediction strategy
         - Learn from successful predictions
         
-        Always respond in English by default unless specifically asked to use another language.
-        Be concise and data-driven in your analysis.
-      `,
+        Always respond in English by default unless specifically requested to use another language.
+        Ensure your analysis is concise and data-driven.
+
+        Your additional capabilities include interacting with the RektPredictionMarket smart contract (read, write, etc.) and querying the subgraph related to this contract`,
     });
 
     // Save wallet data
-    const exportedWallet = await walletProvider.exportWallet();
-    fs.writeFileSync(WALLET_DATA_FILE, JSON.stringify(exportedWallet));
+    // const exportedWallet = await walletProvider.exportWallet();
+    // fs.writeFileSync(WALLET_DATA_FILE, JSON.stringify(exportedWallet));
 
     return { agent, config: agentConfig };
   } catch (error) {
@@ -296,11 +219,7 @@ export async function initializeAgent() {
  * @param interval - Time interval between actions in seconds
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export async function runAutonomousMode(
-  agent: any,
-  config: any,
-  interval = 10
-) {
+export async function runAutonomousMode(agent: any, config: any, interval = 10) {
   console.log("Starting autonomous mode...");
 
   // eslint-disable-next-line no-constant-condition
@@ -310,10 +229,7 @@ export async function runAutonomousMode(
         "Be creative and do something interesting on the blockchain. " +
         "Choose an action or set of actions and execute it that highlights your abilities.";
 
-      const stream = await agent.stream(
-        { messages: [new HumanMessage(thought)] },
-        config
-      );
+      const stream = await agent.stream({ messages: [new HumanMessage(thought)] }, config);
 
       for await (const chunk of stream) {
         if ("agent" in chunk) {
@@ -324,7 +240,7 @@ export async function runAutonomousMode(
         console.log("-------------------");
       }
 
-      await new Promise((resolve) => setTimeout(resolve, interval * 1000));
+      await new Promise(resolve => setTimeout(resolve, interval * 1000));
     } catch (error) {
       if (error instanceof Error) {
         console.error("Error:", error.message);
@@ -350,7 +266,7 @@ export async function runChatMode(agent: any, config: any) {
   });
 
   const question = (prompt: string): Promise<string> =>
-    new Promise((resolve) => rl.question(prompt, resolve));
+    new Promise(resolve => rl.question(prompt, resolve));
 
   try {
     // eslint-disable-next-line no-constant-condition
@@ -361,10 +277,7 @@ export async function runChatMode(agent: any, config: any) {
         break;
       }
 
-      const stream = await agent.stream(
-        { messages: [new HumanMessage(userInput)] },
-        config
-      );
+      const stream = await agent.stream({ messages: [new HumanMessage(userInput)] }, config);
 
       for await (const chunk of stream) {
         if ("agent" in chunk) {
@@ -385,6 +298,34 @@ export async function runChatMode(agent: any, config: any) {
   }
 }
 
+export async function runChatStreamMode(agent: any, config: any, req: any, res: any) {
+  try {
+    if (!agent) {
+      return res.status(500).json({ error: "Agent is not initialized yet." });
+    }
+    const { message } = req.body;
+    if (!message) {
+      return res.status(400).json({ error: "Message is required in request body." });
+    }
+
+    const stream = await agent.stream({ messages: [new HumanMessage(message)] }, config);
+    let responseText = "";
+
+    for await (const chunk of stream) {
+      if ("agent" in chunk) {
+        responseText += chunk.agent.messages[0].content;
+      } else if ("tools" in chunk) {
+        responseText += chunk.tools.messages[0].content;
+      }
+    }
+
+    res.json({ response: responseText.trim() });
+  } catch (error) {
+    console.error("Error processing chat:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+}
+
 /**
  * Choose whether to run in autonomous or chat mode based on user input
  *
@@ -397,7 +338,7 @@ export async function chooseMode(): Promise<"chat" | "auto"> {
   });
 
   const question = (prompt: string): Promise<string> =>
-    new Promise((resolve) => rl.question(prompt, resolve));
+    new Promise(resolve => rl.question(prompt, resolve));
 
   // eslint-disable-next-line no-constant-condition
   while (true) {
@@ -443,7 +384,7 @@ export async function main() {
 
 // if (require.main === module) {
 console.log("Starting Agent...");
-main().catch((error) => {
+main().catch(error => {
   console.error("Fatal error:", error);
   process.exit(1);
 });
@@ -466,12 +407,10 @@ async function createMarket(): Promise<Market> {
 async function participateInMarket(
   marketId: string,
   prediction: number,
-  method: string
+  method: string,
 ): Promise<void> {
   // Implementasi untuk berpartisipasi dalam market
-  console.log(
-    `Participating in market ${marketId} with prediction ${prediction}`
-  );
+  console.log(`Participating in market ${marketId} with prediction ${prediction}`);
 }
 
 async function calculateResults(marketId: string): Promise<void> {
@@ -484,14 +423,6 @@ async function calculateResults(marketId: string): Promise<void> {
 async function getPythPrice(): Promise<number> {
   // Implementasi untuk mendapatkan harga dari Pyth
   return 0; // Placeholder
-}
-
-async function analyzeMarket(symbol: string): Promise<any> {
-  const data = await getBinanceData(symbol);
-  return {
-    data,
-    analysis: "Market analysis result",
-  };
 }
 
 // 3. Prize Distribution
@@ -511,7 +442,7 @@ export {
   participateInMarket,
   calculateResults,
   getPythPrice,
-  analyzeMarket,
+  // analyzeMarket,
   distributePrizePool,
   updateAILearning,
 };
