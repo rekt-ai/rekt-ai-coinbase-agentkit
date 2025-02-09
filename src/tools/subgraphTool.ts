@@ -24,7 +24,9 @@ export const getSubgraphMarketCreatedData = new DynamicStructuredTool({
     //   ),
     deadline_gt: z
       .string()
-      .describe("Deadline greater than this value, use the current block.timestamp"),
+      .describe(
+        "Deadline greater than this value, use the current block timestamp by default if not mentioned by user",
+      ),
   }),
   func: async ({ deadline_gt }) => {
     try {

@@ -25,6 +25,11 @@ import { privateKeyToAccount } from "viem/accounts";
 import { arbitrumSepolia, baseSepolia } from "viem/chains";
 import { getBinanceMarketData } from "./tools/binanceTool";
 import { getSubgraphMarketCreatedData, getSubgraphMarketSettledData } from "./tools/subgraphTool";
+import {
+  readMarketsContract,
+  writeCreateMarketContract,
+  writeParticipateInMarketContract,
+} from "./actions/RektPredictionMarket";
 
 dotenv.config();
 
@@ -73,22 +78,7 @@ validateEnvironment();
 // Configure a file to persist the agent's CDP MPC Wallet Data
 const WALLET_DATA_FILE = "wallet_data.txt";
 
-// Tambahkan interface untuk market
-interface Market {
-  id: string;
-  asset: string;
-  depositPeriod: number;
-  breakPeriod: number;
-  calculationPeriod: number;
-  prizePool: number;
-  participants: Array<{
-    id: string;
-    prediction: number;
-    method: string;
-  }>;
-}
-
-const chain = {
+export const chains = {
   "base-sepolia": baseSepolia,
   "arbitrum-sepolia": arbitrumSepolia,
 };
@@ -134,7 +124,7 @@ export async function initializeAgent() {
     const account = privateKeyToAccount(process.env.AGENT_PRIVATE_KEY as `0x${string}`);
     const walletClient = createWalletClient({
       account,
-      chain: chain[networkId],
+      chain: chains[networkId],
       transport: http(),
     });
     const walletProvider = new ViemWalletProvider(walletClient);
@@ -157,6 +147,9 @@ export async function initializeAgent() {
           apiKeyName: process.env.CDP_API_KEY_NAME,
           apiKeyPrivateKey: process.env.CDP_API_KEY_PRIVATE_KEY?.replace(/\\n/g, "\n"),
         }),
+        readMarketsContract,
+        writeCreateMarketContract,
+        writeParticipateInMarketContract,
       ],
     });
 
@@ -169,6 +162,7 @@ export async function initializeAgent() {
     };
 
     // Create React Agent using the LLM and CDP AgentKit tools
+    const today = new Date();
     const agent = createReactAgent({
       llm,
       tools: [
@@ -179,6 +173,7 @@ export async function initializeAgent() {
       ],
       checkpointSaver: memory,
       messageModifier: `
+        Today is ${today.toDateString()}, this is to know when today is.
         You are REKT-AI (Risk Evaluation Knockout Tournament - AI), a competitor in prediction markets that:
         1. Learns from user prediction methods
         2. Analyzes market data comprehensively
@@ -388,61 +383,3 @@ main().catch(error => {
   console.error("Fatal error:", error);
   process.exit(1);
 });
-// }
-
-// 1. Market Creation & Management
-async function createMarket(): Promise<Market> {
-  // Implementasi pembuatan market
-  return {
-    id: `market_${Date.now()}`,
-    asset: "BTC/USDT",
-    depositPeriod: 2 * 24 * 60 * 60, // 2 days in seconds
-    breakPeriod: 3 * 24 * 60 * 60, // 3 days
-    calculationPeriod: 3 * 24 * 60 * 60, // 3 days
-    prizePool: 0,
-    participants: [],
-  };
-}
-
-async function participateInMarket(
-  marketId: string,
-  prediction: number,
-  method: string,
-): Promise<void> {
-  // Implementasi untuk berpartisipasi dalam market
-  console.log(`Participating in market ${marketId} with prediction ${prediction}`);
-}
-
-async function calculateResults(marketId: string): Promise<void> {
-  // Implementasi perhitungan hasil
-  const actualPrice = await getPythPrice();
-  console.log(`Calculating results for market ${marketId}`);
-}
-
-// 2. Market Data & Analysis
-async function getPythPrice(): Promise<number> {
-  // Implementasi untuk mendapatkan harga dari Pyth
-  return 0; // Placeholder
-}
-
-// 3. Prize Distribution
-async function distributePrizePool(marketId: string): Promise<void> {
-  // Implementasi distribusi hadiah
-  console.log(`Distributing prize pool for market ${marketId}`);
-}
-
-async function updateAILearning(marketId: string, results: any): Promise<void> {
-  // Implementasi update pembelajaran AI
-  console.log(`Updating AI learning from market ${marketId}`);
-}
-
-// Export fungsi-fungsi baru
-export {
-  createMarket,
-  participateInMarket,
-  calculateResults,
-  getPythPrice,
-  // analyzeMarket,
-  distributePrizePool,
-  updateAILearning,
-};
