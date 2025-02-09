@@ -32,7 +32,7 @@ app.get("/run/:mode", async (req, res) => {
       if (mode === "chat") {
         await runChatMode(agent, config);
         // Restart if 'exit' is received in chat mode
-        mode = req.params.mode;
+        // mode = req.params.mode;
         //   } else if (mode === "chatStream") {
         //     await runChatStreamMode(agent, config, req, res);
         // Autonomous mode keeps running indefinitely
@@ -44,8 +44,8 @@ app.get("/run/:mode", async (req, res) => {
     res.send("Agent executed successfully.");
   } catch (error) {
     if (error instanceof Error) {
-      console.error("Error:", error.message);
-      res.status(500).send("Internal Server Error: " + error.message);
+      console.error("Error:", error);
+      res.status(500).send("Internal Server Error: " + error);
     } else {
       res.status(500).send("Unknown error occurred.");
     }
