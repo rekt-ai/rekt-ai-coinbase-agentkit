@@ -32,11 +32,18 @@ export const readMarketsContract = customActionProvider<EvmWalletProvider>({
     const phaseIndex: number = (await walletProvider.readContract({
       abi: contractABI,
       address: contractAddress as `0x${string}`,
-      functionName: "getMarketPhase",
+      functionName: "getPlayerData",
       args: [marketId],
     })) as number;
 
-    console.log(phaseIndex, "index");
+    const playerData: any = await walletProvider.readContract({
+      abi: contractABI,
+      address: contractAddress as `0x${string}`,
+      functionName: "getPlayerData",
+      args: [marketId, , walletProvider.getAddress()],
+    });
+
+    const isPredictedByAI: any = playerData[0].toString() === "0";
 
     return JSON.stringify({
       startTime: rawResult[0].toString(),
@@ -47,6 +54,7 @@ export const readMarketsContract = customActionProvider<EvmWalletProvider>({
       settled: rawResult[5].toString(),
       name: rawResult[6].toString(),
       phase: phaseEnum[phaseIndex],
+      isPredictedByAI,
     });
   },
 });
@@ -86,9 +94,7 @@ export const writeCreateMarketContract = customActionProvider<EvmWalletProvider>
     const contractAddress = contract.address;
     const contractABI = contract.abi;
 
-    console.log("participationFee", participationFee);
-
-    await walletProvider.sendTransaction({
+    return await walletProvider.sendTransaction({
       to: contractAddress as `0x${string}`,
       data: encodeFunctionData({
         abi: contractABI,
@@ -122,7 +128,7 @@ export const writeParticipateInMarketContract = customActionProvider<EvmWalletPr
 
     const bytes32Value = stringToHex("", { size: 32 });
 
-    const res = await walletProvider.sendTransaction({
+    return await walletProvider.sendTransaction({
       to: contractAddress as `0x${string}`,
       data: encodeFunctionData({
         abi: contractABI,
@@ -131,6 +137,36 @@ export const writeParticipateInMarketContract = customActionProvider<EvmWalletPr
       }),
       value: entranceFee, // Assuming no ETH is required to participate, adjust if needed
     });
-    console.log(res);
+  },
+});
+
+export const writeSettleMarketContract = customActionProvider<EvmWalletProvider>({
+  name: "writeSettleMarket",
+  description:
+    "settle a market by providing the final price and ensuring the market is in the settlement phase",
+  schema: z.object({
+    marketId: z.string().describe("The market ID"),
+    finalPrice: z
+      .string()
+      .describe(
+        "The final price for the market, input as an integer with 8 additional decimals (e.g., $100,000 as 10000000000000)",
+      ),
+  }),
+  invoke: async (walletProvider, args: any) => {
+    const networkId = process.env.NETWORK_ID || "base-sepolia";
+    const chainId = chains[networkId].id;
+    const { marketId, finalPrice } = args;
+    const contract = deployedContracts[chainId][contractName];
+    const contractAddress = contract.address;
+    const contractABI = contract.abi;
+
+    return await walletProvider.sendTransaction({
+      to: contractAddress as `0x${string}`,
+      data: encodeFunctionData({
+        abi: contractABI,
+        functionName: "settleMarket",
+        args: [marketId, finalPrice],
+      }),
+    });
   },
 });

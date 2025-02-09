@@ -1,4 +1,9 @@
 use default settings, get created market, when you get the market id, use it to get market details
-the 
-
 hi, can you participate in market id 5? first you need to predict it based on deadline (blocktimestamp) based on the name of the market, use default settings and spend entranceFee based on the market entrance fee
+
+Prompt: Using the current date, initiate a new market with ID 12 for the asset PEPE. Set the deadline to be 14 days from today. Before executing, allow me to verify the inputs for accuracy.
+
+Real data:
+- Epoch timestamp: 1739104854
+- Date and time (GMT): Sunday, February 9, 2025 12:40:54 PM
+Date and time (GMT): Sunday, February 9, 2025 12:40:54 PM
