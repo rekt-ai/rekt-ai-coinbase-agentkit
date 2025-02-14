@@ -17,11 +17,6 @@ export const getSubgraphMarketCreatedData = new DynamicStructuredTool({
   name: "getSubgraphMarketCreatedData",
   description: "Get market creation data from The Graph (by default use current network)",
   schema: z.object({
-    // network: z
-    //   .string()
-    //   .describe(
-    //     "The network to query (always check current network by default, e.g., arbitrum-sepolia, base-sepolia)",
-    //   ),
     deadline_gt: z
       .string()
       .describe(
@@ -36,7 +31,7 @@ export const getSubgraphMarketCreatedData = new DynamicStructuredTool({
           query ($deadline_gt: BigInt!) {
             marketCreateds(
               first: 10
-              orderBy: startTime
+              orderBy: blockTimestamp
               orderDirection: desc
               where: { deadline_gt: $deadline_gt }
               skip: 0
@@ -63,19 +58,12 @@ export const getSubgraphMarketSettledData = new DynamicStructuredTool({
   name: "getSubgraphMarketSettledData",
   description: "Get market settlement data from The Graph (by default use current network)",
   schema: z.object({
-    // network: z
-    //   .string()
-    //   .describe(
-    //     "The network to query (always check current network by default, e.g., arbitrum-sepolia, base-sepolia)",
-    //   ),
     blockTimestamp_lt: z
       .string()
-      .describe(
-        "Block timestamp less than this value, use current block timestamp format plus 1 day",
-      ),
+      .describe("Block timestamp less than this value, use current block timestamp plus 1 day"),
     blockTimestamp_gt: z
       .string()
-      .describe("Block timestamp greater than this value, use block timestamp"),
+      .describe("Block timestamp greater than this value, use current block timestamp minus 1 day"),
     winner_not: z
       .string()
       .describe("Winner address not equal to this value, use my wallet address"),
@@ -98,6 +86,7 @@ export const getSubgraphMarketSettledData = new DynamicStructuredTool({
               predictionPrice
               totalAmount
               winner
+              blockTimestamp
             }
           }
         `,

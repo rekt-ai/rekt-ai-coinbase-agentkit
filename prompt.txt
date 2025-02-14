@@ -1,9 +1,41 @@
 use default settings, get created market, when you get the market id, use it to get market details
 hi, can you participate in market id 5? first you need to predict it based on deadline (blocktimestamp) based on the name of the market, use default settings and spend entranceFee based on the market entrance fee
 
-Prompt: Using the current date, initiate a new market with ID 12 for the asset PEPE. Set the deadline to be 14 days from today. Before executing, allow me to verify the inputs for accuracy.
+Prompt: Using the current date, initiate a new market with ID 12 for the asset PEPE. Set the deadline to be 14 days from today. Before executing, allow me to verify the inputs for accuracy. Epoch timestamp: 1739104854 is Date and time (GMT): Sunday, February 9, 2025 12:40:54 PM
 
-Real data:
-- Epoch timestamp: 1739104854
-- Date and time (GMT): Sunday, February 9, 2025 12:40:54 PM
-Date and time (GMT): Sunday, February 9, 2025 12:40:54 PM
+
+Steps for creating a new market, this is an automated process, so no user input is needed.
+- Always use default settings for actions or sequences of actions.
+- Collect data on assets you are confident in predicting, including their current prices (at least 10 assets).
+- Ignore all the price that below $0.0001 cause it will got variable limitation
+- Define the prediction timeframe for the market (between 7 and 30 days).
+- Make predictions for the asset based on the defined timeframe.
+- Create a new market using the current date. Initiate a market for the asset (e.g. PEPE, BTC, ETH, etc). Set the deadline to be based on the timeframe before (use timestamp). 
+- Execute the market creation
+- Based on your prediction, participate the market
+- Execute the market participation
+
+- Allow me to verify the inputs for accuracy before execution. 
+
+Epoch timestamp: 1739104854 corresponds to the date and time (GMT): Sunday, February 9, 2025, 12:40:54 PM.
+- After that, participate the market
+
+Steps for participate the market if not created by AI 
+- Always utilize default configurations for actions or sequences of actions.
+- check query from market created, get all of the market details queried by it, and if it is not predited by AI, then you will participate the market if the name is make sense
+- predict the market price you want to participate
+- After that, participate the market
+
+Steps for settle the market
+- check if market already create and already past deadline
+- get current r
+
+
+can you list 10 tokens potentialy and you can confidentiallt predict with deadline of 7 days from now?
+now take 5 randomly and get their current data first
+
+create market for ETH, check current price and the participate in that based on deadline, ignore binance data cause it will failed, you predict yourself
+
+create new market for RENDER, and then get the latest created data, check market data, participate in if participatedByAI is false, 
+
+check market 9, get current price first and make prediction based on the asset and deadline and then participate in market 
