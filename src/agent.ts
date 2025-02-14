@@ -17,9 +17,6 @@ import { ChatOpenAI } from "@langchain/openai";
 import * as dotenv from "dotenv";
 import * as fs from "fs";
 import * as readline from "readline";
-import axios from "axios";
-import { DynamicStructuredTool } from "@langchain/core/tools";
-import { z } from "zod";
 import { createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { arbitrumSepolia, baseSepolia } from "viem/chains";
@@ -51,6 +48,8 @@ export function validateEnvironment(): void {
     "CDP_API_KEY_PRIVATE_KEY",
     "BINANNCE_MARKET_DATA_API_KEY",
     "AGENT_PRIVATE_KEY",
+    // Try with open AI
+    "OPENAI_API_KEY",
   ];
   requiredVars.forEach(varName => {
     if (!process.env[varName]) {
@@ -94,10 +93,10 @@ export async function initializeAgent() {
     // Initialize LLM
     const llm = new ChatOpenAI({
       model: "gpt-4o-mini",
-      openAIApiKey: process.env.OPENROUTER_API_KEY,
-      configuration: {
-        baseURL: process.env.OPENROUTER_BASE_URL,
-      },
+      openAIApiKey: process.env.OPENAI_API_KEY || process.env.OPENROUTER_API_KEY,
+      // configuration: {
+      //   baseURL: process.env.OPENAI_API_KEY ? "https://api.openai.com/v1" : process.env.OPENROUTER_BASE_URL,
+      // },
     });
 
     let walletDataStr: string | null = null;
@@ -239,7 +238,7 @@ export async function runAutonomousMode(agent: any, config: any, interval = 10) 
         }
         console.log("-------------------");
       }
-
+      // The timeout for this is determined by the 'interval' parameter, which is multiplied by 1000 to convert seconds to milliseconds.
       await new Promise(resolve => setTimeout(resolve, interval * 1000));
     } catch (error) {
       if (error instanceof Error) {
