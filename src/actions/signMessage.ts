@@ -14,4 +14,3 @@ export const customSignMessage = customActionProvider<EvmWalletProvider>({
     return `The payload signature ${signature}`;
   },
 });
-1
