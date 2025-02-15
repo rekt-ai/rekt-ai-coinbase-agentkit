@@ -6,8 +6,31 @@ import { z } from "zod";
 
 const contractName: string = "RektPredictionMarket";
 
-export const readMarketsContract = customActionProvider<EvmWalletProvider>({
-  name: "readMarketsContract",
+export const readNextMarketId = customActionProvider<EvmWalletProvider>({
+  name: "readNextMarketId",
+  description:
+    "Retrieve the next market ID for upcoming market creation. If the result is ID 9, it indicates that markets below 9 have been created, while those with IDs greater than or equal to 9 have not yet been created.",
+  schema: z.object({}),
+  invoke: async walletProvider => {
+    const networkId = process.env.NETWORK_ID || "base-sepolia";
+    const chainId = chains[networkId].id;
+    const contract = deployedContracts[chainId][contractName];
+    const contractAddress = contract.address;
+    const contractABI = contract.abi;
+
+    const rawResult: any = await walletProvider.readContract({
+      abi: contractABI,
+      address: contractAddress as `0x${string}`,
+      functionName: "nextOrderId",
+      args: [],
+    });
+
+    return rawResult[0].toString();
+  },
+});
+
+export const readMarketDetails = customActionProvider<EvmWalletProvider>({
+  name: "readMarketDetails",
   description:
     "read certain created market details when you know the market ID from the graph and still not greater than the deadline",
   schema: z.object({

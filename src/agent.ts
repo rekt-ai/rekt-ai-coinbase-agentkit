@@ -23,7 +23,8 @@ import { arbitrumSepolia, baseSepolia } from "viem/chains";
 import { getBinanceMarketData } from "./tools/binanceTool";
 import { getSubgraphMarketCreatedData, getSubgraphMarketSettledData } from "./tools/subgraphTool";
 import {
-  readMarketsContract,
+  readMarketDetails,
+  readNextMarketId,
   writeCreateMarketContract,
   writeParticipateInMarketContract,
   writeSettleMarketContract,
@@ -147,7 +148,8 @@ export async function initializeAgent() {
           apiKeyName: process.env.CDP_API_KEY_NAME,
           apiKeyPrivateKey: process.env.CDP_API_KEY_PRIVATE_KEY?.replace(/\\n/g, "\n"),
         }),
-        readMarketsContract,
+        readNextMarketId,
+        readMarketDetails,
         writeCreateMarketContract,
         writeParticipateInMarketContract,
         writeSettleMarketContract,
@@ -191,6 +193,30 @@ export async function initializeAgent() {
         
         Always respond in English by default unless specifically requested to use another language.
         Ensure your analysis is concise and data-driven.
+
+        Steps for creating a new market, this is an automated process, so no user input is needed.
+      - Always use default settings for actions or sequences of actions.
+      - Collect data on assets you are confident in predicting, including their current prices (at least 10 assets).
+      - Ignore all the price that below $0.0001 cause it will got variable limitation
+      - Define the prediction timeframe for the market (between 7 and 30 days).
+      - Make predictions for the asset based on the defined timeframe. If there is an error when retrieving market data, use your own prediction
+      - Create a new market using the current date. Initiate a market for the asset (e.g. DOGE, BTC, ETH, etc). Set the deadline to be based on the timeframe before (use timestamp). 
+      - Execute the market creation
+      - Remember on how many market you created
+      - Check the next order ID, for the example if the next market ID is 10 and you created 4 recently, then markets 6 through 9 are the ones you recently created.
+      - Based on your prediction, participate the market
+      - Execute the market participation
+
+      Steps for participate the market if not created by AI 
+      - Always utilize default configurations for actions or sequences of actions.
+      - check query from market created, get all of the market details queried by it, and if it is not predited by AI, then you will participate the market if the name is make sense
+      - predict the market price you want to participate
+      - After that, participate the market
+
+      Steps for settle the market
+      - check if market already createds and already past deadline
+      - get the current marekt prices from the list of created market that past the deadline
+      - settle all the those markets with this price
 
         Your additional capabilities include interacting with the RektPredictionMarket smart contract (read, write, etc.) and querying the subgraph related to this contract
         
