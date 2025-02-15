@@ -17,6 +17,9 @@ import { ChatOpenAI } from "@langchain/openai";
 import * as dotenv from "dotenv";
 import * as fs from "fs";
 import * as readline from "readline";
+import axios from "axios";
+import { DynamicStructuredTool } from "@langchain/core/tools";
+import { z } from "zod";
 import { createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { arbitrumSepolia, baseSepolia } from "viem/chains";
@@ -28,6 +31,12 @@ import {
   writeParticipateInMarketContract,
   writeSettleMarketContract,
 } from "./actions/RektPredictionMarket";
+import { getPolymarketData } from "./tools/polymarketTool";
+import {
+  createPolymarketPrediction,
+  participateInMarket,
+  settleMarket,
+} from "./tools/polymarketTool";
 
 dotenv.config();
 
@@ -48,8 +57,6 @@ export function validateEnvironment(): void {
     "CDP_API_KEY_PRIVATE_KEY",
     "BINANNCE_MARKET_DATA_API_KEY",
     "AGENT_PRIVATE_KEY",
-    // Try with open AI
-    "OPENAI_API_KEY",
   ];
   requiredVars.forEach(varName => {
     if (!process.env[varName]) {
@@ -93,10 +100,10 @@ export async function initializeAgent() {
     // Initialize LLM
     const llm = new ChatOpenAI({
       model: "gpt-4o-mini",
-      openAIApiKey: process.env.OPENAI_API_KEY || process.env.OPENROUTER_API_KEY,
-      // configuration: {
-      //   baseURL: process.env.OPENAI_API_KEY ? "https://api.openai.com/v1" : process.env.OPENROUTER_BASE_URL,
-      // },
+      openAIApiKey: process.env.OPENROUTER_API_KEY,
+      configuration: {
+        baseURL: process.env.OPENROUTER_BASE_URL,
+      },
     });
 
     let walletDataStr: string | null = null;
@@ -171,6 +178,10 @@ export async function initializeAgent() {
         getBinanceMarketData,
         getSubgraphMarketCreatedData,
         getSubgraphMarketSettledData,
+        createPolymarketPrediction,
+        participateInMarket,
+        settleMarket,
+        getPolymarketData,
       ],
       checkpointSaver: memory,
       messageModifier: `
@@ -192,8 +203,28 @@ export async function initializeAgent() {
         Always respond in English by default unless specifically requested to use another language.
         Ensure your analysis is concise and data-driven.
 
-        Your additional capabilities include interacting with the RektPredictionMarket smart contract (read, write, etc.) and querying the subgraph related to this contract
-        
+        Your additional capabilities include:
+        1. Creating prediction markets on Polymarket:
+           - Use createPolymarketPrediction for new markets
+           - Generate unique numeric market IDs
+           - Set appropriate deadlines and fees
+
+        2. Participating in markets:
+           - Use participateInMarket to place predictions
+           - Analyze market data before participating
+           - Consider both technical and fundamental factors
+
+        3. Settling markets:
+           - Use settleMarket for market settlement
+           - Verify final prices with Binance data
+           - Calculate and distribute rewards
+
+        When creating markets:
+        - Generate numeric market IDs using timestamps
+        - Set reasonable entrance fees (0.001-0.1 ETH)
+        - Set deadlines between 1-30 days
+        - Use clear market names and descriptions
+
         Additional data, Today is ${today.toDateString()}, this is to know when today is.
         Example for Epoch timestamp: 1739104854 is Date and time (GMT): Sunday, February 9, 2025 12:40:54 PM, so make it sure to calculate accurate timestamp
         `,
@@ -238,7 +269,7 @@ export async function runAutonomousMode(agent: any, config: any, interval = 10) 
         }
         console.log("-------------------");
       }
-      // The timeout for this is determined by the 'interval' parameter, which is multiplied by 1000 to convert seconds to milliseconds.
+
       await new Promise(resolve => setTimeout(resolve, interval * 1000));
     } catch (error) {
       if (error instanceof Error) {

@@ -1,11 +1,13 @@
 import { customActionProvider, EvmWalletProvider } from "@coinbase/agentkit";
-import { parseUnits, encodeFunctionData, stringToHex } from "viem";
 import { deployedContracts } from "../contracts/deployedContracts";
 import { chains } from "../agent";
 import { z } from "zod";
+import { encodeFunctionData, stringToHex } from "viem";
 
+// Contract name constant
 const contractName: string = "RektPredictionMarket";
 
+// Read market details from contract
 export const readMarketsContract = customActionProvider<EvmWalletProvider>({
   name: "readMarketsContract",
   description:
@@ -14,7 +16,6 @@ export const readMarketsContract = customActionProvider<EvmWalletProvider>({
     marketId: z.string().describe("The market ID"),
   }),
   invoke: async (walletProvider, args: any) => {
-    const addr = walletProvider.getAddress();
     const networkId = process.env.NETWORK_ID || "base-sepolia";
     const chainId = chains[networkId].id;
     const { marketId } = args;
@@ -33,7 +34,7 @@ export const readMarketsContract = customActionProvider<EvmWalletProvider>({
     const phaseIndex: number = (await walletProvider.readContract({
       abi: contractABI,
       address: contractAddress as `0x${string}`,
-      functionName: "getMarketPhase",
+      functionName: "getPlayerData",
       args: [marketId],
     })) as number;
 
@@ -41,10 +42,10 @@ export const readMarketsContract = customActionProvider<EvmWalletProvider>({
       abi: contractABI,
       address: contractAddress as `0x${string}`,
       functionName: "getPlayerData",
-      args: [marketId, addr],
+      args: [marketId, , walletProvider.getAddress()],
     });
 
-    const isPredictedByAI: any = playerData[0].toString() !== "0";
+    const isPredictedByAI: any = playerData[0].toString() === "0";
 
     return JSON.stringify({
       startTime: rawResult[0].toString(),
@@ -60,146 +61,81 @@ export const readMarketsContract = customActionProvider<EvmWalletProvider>({
   },
 });
 
+// Create a new prediction market
 export const writeCreateMarketContract = customActionProvider<EvmWalletProvider>({
   name: "writeCreateMarket",
-  description:
-    "create a new market by specifying deadline, participation fee, and a creative market name",
+  description: "Create a new prediction market",
   schema: z.object({
-    deadline: z
-      .number()
-      .optional()
-      .default(7)
-      .describe(
-        "The market's deadline in days, set on-chain to represent the end of the prediction phase (7 days from current date by default)",
-      ),
-    participationFee: z
-      .string()
-      .optional()
-      .default("0.001") // Default to 0.0001 ETH
-      .transform(value => {
-        const fee = parseFloat(value);
-        if (fee >= 0.001 && fee <= 0.005) {
-          return value; // Use the valid fee
-        }
-        return "0.001"; // Fallback to default value
-      })
-      .describe(
-        "The participation fee for the market specified in ether. The maximum fee is 0.0005 ETH and the minimum fee is 0.0001 ETH.",
-      ),
-    name: z
-      .string()
-      .describe(
-        "An imaginative title for the market, indicating the asset to be forecasted (e.g., 'BTC Price Prediction Challenge vs AI'). Not restricted to BTC, you can choose ETH, DOGE, or any other single asset.",
-      ),
+    marketId: z.string().describe("The market ID"),
+    startTime: z.number().describe("Start time in unix timestamp"),
+    deadline: z.number().describe("Deadline in unix timestamp"),
+    participationFee: z.string().describe("Participation fee in wei"),
+    name: z.string().describe("Market name"),
   }),
   invoke: async (walletProvider, args: any) => {
     const networkId = process.env.NETWORK_ID || "base-sepolia";
     const chainId = chains[networkId].id;
-    const { deadline, participationFee, name } = args;
     const contract = deployedContracts[chainId][contractName];
-    const contractAddress = contract.address;
-    const contractABI = contract.abi;
-
-    const parsedParticipationFee = parseUnits(participationFee, 18); // Convert to wei
-    console.log("Participation Fee (Wei):", parsedParticipationFee);
-
-    const adjustedDeadline = deadline < 3 || deadline > 30 ? 7 : deadline;
-    if (adjustedDeadline !== deadline) {
-      console.warn("Deadline out of range. Defaulting to 7 days.");
-    }
-
-    const currentDateTimestamp = Math.floor(Date.now() / 1000); // This mimics the block.timestamp format in blockchain, which is in seconds since Unix epoch
-    const deadlineTimestamp = currentDateTimestamp + adjustedDeadline * 24 * 60 * 60;
 
     return await walletProvider.sendTransaction({
-      to: contractAddress as `0x${string}`,
+      to: contract.address as `0x${string}`,
       data: encodeFunctionData({
-        abi: contractABI,
+        abi: contract.abi,
         functionName: "createMarket",
-        args: [0n, deadlineTimestamp, parsedParticipationFee.toString(), name],
-      }),
+        args: [args.marketId, args.startTime, args.deadline, args.participationFee, args.name],
+      }) as `0x${string}`,
     });
   },
 });
 
+// Participate in an existing market
 export const writeParticipateInMarketContract = customActionProvider<EvmWalletProvider>({
   name: "writeParticipateInMarket",
-  description:
-    "participate in a market by providing a prediction price and ensuring the market is in the prediction phase",
+  description: "Participate in a market by providing a prediction",
   schema: z.object({
     marketId: z.string().describe("The market ID"),
-    predictionPrice: z
-      .string()
-      .describe(
-        "The prediction price for the market, input as an integer with 8 additional decimals (e.g., $100,000 as 10000000000000)",
-      ),
-    entranceFee: z
-      .string()
-      .optional()
-      .default("0.001") // Default to 0.0001 ETH
-      .transform(value => {
-        const fee = parseFloat(value);
-        if (fee >= 0.001 && fee <= 0.005) {
-          return value; // Use the valid fee
-        }
-        return "0.001"; // Fallback to default value
-      })
-      .describe(
-        "The participation fee for the market specified in ether. The maximum fee is 0.0005 ETH and the minimum fee is 0.0001 ETH.",
-      ),
+    predictionPrice: z.string().describe("The prediction price"),
+    proofData: z.string().optional().describe("Optional proof data"),
   }),
   invoke: async (walletProvider, args: any) => {
     const networkId = process.env.NETWORK_ID || "base-sepolia";
     const chainId = chains[networkId].id;
-    const { marketId, predictionPrice, entranceFee } = args;
     const contract = deployedContracts[chainId][contractName];
-    const contractAddress = contract.address;
-    const contractABI = contract.abi;
-
-    const bytes32Value = stringToHex("", { size: 32 });
-
-    const entranceFeeInWei = parseUnits(entranceFee, 18); // Convert entrance fee to wei
-    console.log("Entrance Fee (Wei):", entranceFeeInWei);
+    const entranceFee = BigInt(1e15); // 0.001 ETH in wei
 
     return await walletProvider.sendTransaction({
-      to: contractAddress as `0x${string}`,
+      to: contract.address as `0x${string}`,
       data: encodeFunctionData({
-        abi: contractABI,
+        abi: contract.abi,
         functionName: "participateInMarket",
-        args: [marketId, predictionPrice, bytes32Value],
-      }),
-      value: entranceFeeInWei,
+        args: [args.marketId, args.predictionPrice, args.proofData || ""],
+      }) as `0x${string}`,
+      value: entranceFee,
     });
   },
 });
 
+// Settle a market with final results
 export const writeSettleMarketContract = customActionProvider<EvmWalletProvider>({
   name: "writeSettleMarket",
-  description:
-    "settle a market by providing the final price and ensuring the market is in the settlement phase",
+  description: "Settle a market with final price",
   schema: z.object({
     marketId: z.string().describe("The market ID"),
-    finalPrice: z
-      .string()
-      .describe(
-        "The final price for the market, input as an integer with 8 additional decimals (e.g., $100,000 as 10000000000000)",
-      ),
+    finalPrice: z.string().describe("The final price"),
+    proofData: z.string().optional().describe("Optional proof data"),
   }),
   invoke: async (walletProvider, args: any) => {
     const networkId = process.env.NETWORK_ID || "base-sepolia";
     const chainId = chains[networkId].id;
-    const { marketId, finalPrice } = args;
     const contract = deployedContracts[chainId][contractName];
-    const contractAddress = contract.address;
-    const contractABI = contract.abi;
 
     return await walletProvider.sendTransaction({
-      to: contractAddress as `0x${string}`,
+      to: contract.address as `0x${string}`,
       data: encodeFunctionData({
-        abi: contractABI,
+        abi: contract.abi,
         functionName: "settleMarket",
-        args: [marketId, finalPrice],
-      }),
+        args: [args.marketId, args.finalPrice, args.proofData || ""],
+      }) as `0x${string}`,
     });
   },
 });
